@@ -3,7 +3,11 @@ import {axiosInstance} from '../lib/axios.js'
 import toast from "react-hot-toast";
 import {io} from "socket.io-client"
 
-const BASE_URL=import.meta.env.MODE==="development"?"http://localhost:5001":"/api"
+const BASE_URL =
+  import.meta.env.MODE === "development"
+    ? "http://localhost:5001"
+    : window.location.origin;
+
 export const useAuthStore = create((set,get)=>({
     authUser:null,
     isSigningUp:false,
@@ -75,18 +79,31 @@ export const useAuthStore = create((set,get)=>({
       set({ isUpdatingProfile: false });
     }
   },
-  connectSocket:()=>{
-    const {authUser}=get()
-    if(!authUser|| get().socket?.connected) return;
-    const socket=io(BASE_URL,{query:{
-      userId:authUser._id,}
-    })
-    socket.connect()
-    set({socket:socket})
-    socket.on("getOnlineUsers",(userIds)=>{
-      set({onlineUsers:userIds})      
-    });
-  },
+  connectSocket: () => {
+  const { authUser, socket } = get();
+  if (!authUser || socket?.connected) return;
+
+  const socketClient = io(BASE_URL, {
+    transports: ["websocket"],
+    withCredentials: true,
+    query: { userId: authUser._id },
+  });
+
+  socketClient.on("connect_error", (err) => {
+    console.error("Socket connect error:", err);
+  });
+
+  socketClient.on("connect", () => {
+    console.log("✅ Socket connected", socketClient.id);
+  });
+
+  socketClient.on("getOnlineUsers", (userIds) => {
+    set({ onlineUsers: userIds });
+  });
+
+  set({ socket: socketClient });
+},
+
   disconnectSocket:()=>{
     if (get().socket?.connected) get().socket.disconnect()    
   }
